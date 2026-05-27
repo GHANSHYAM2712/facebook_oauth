@@ -1,0 +1,31 @@
+# Python virtual environment
+venv/
+.venv/
+ENV/
+env/
+
+# Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Private environment credentials
+.env
+
+# SQLite local databases (generated during validation)
+*.db
+*.sqlite
+*.sqlite3
+
+# Flask and development caches
+.pytest_cache/
+.coverage
+htmlcov/
+instance/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
