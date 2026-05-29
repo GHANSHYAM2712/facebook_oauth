@@ -124,7 +124,13 @@ def diagnose():
                 print(f"  - {col} ({dtype})")
                 
             # Column mapping checks
-            waba_col = 'whatsapp_business_account_id' if 'whatsapp_business_account_id' in columns else ('waba_id' if 'waba_id' in columns else 'whatsapp_business_id')
+            waba_col = 'whatsapp_business_account_id' if 'whatsapp_business_account_id' in columns else (
+                'waba_id' if 'waba_id' in columns else (
+                    'whatsapp_business_id' if 'whatsapp_business_id' in columns else (
+                        'business_id' if 'business_id' in columns else 'whatsapp_business_account_id'
+                    )
+                )
+            )
             phone_col = 'phone_number_id' if 'phone_number_id' in columns else ('phone_id' if 'phone_id' in columns else 'whatsapp_phone_number_id')
             token_col = 'access_token' if 'access_token' in columns else 'token'
             org_col = 'organization_id' if 'organization_id' in columns else 'org_id'

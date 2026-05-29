@@ -135,6 +135,8 @@ def exchange_token():
             # Fallback
             target_table = 'whatsapp_accounts'
 
+        import uuid
+
         # Step 7: Dynamic Column Mapping - Identify columns in target table
         cursor.execute("""
             SELECT column_name 
@@ -144,7 +146,13 @@ def exchange_token():
         columns = [row[0] for row in cursor.fetchall()]
 
         # Map matching columns
-        waba_col = 'whatsapp_business_account_id' if 'whatsapp_business_account_id' in columns else ('waba_id' if 'waba_id' in columns else 'whatsapp_business_id')
+        waba_col = 'whatsapp_business_account_id' if 'whatsapp_business_account_id' in columns else (
+            'waba_id' if 'waba_id' in columns else (
+                'whatsapp_business_id' if 'whatsapp_business_id' in columns else (
+                    'business_id' if 'business_id' in columns else 'whatsapp_business_account_id'
+                )
+            )
+        )
         phone_col = 'phone_number_id' if 'phone_number_id' in columns else ('phone_id' if 'phone_id' in columns else 'whatsapp_phone_number_id')
         token_col = 'access_token' if 'access_token' in columns else 'token'
         org_col = 'organization_id' if 'organization_id' in columns else 'org_id'
@@ -152,8 +160,7 @@ def exchange_token():
         # Validate that the mapped columns actually exist in the table (fallback checking)
         missing_columns = [col for col in [org_col, waba_col, phone_col, token_col] if col not in columns]
         if missing_columns:
-            # If the columns don't exist yet, we'll assume a standard postgresql insert attempt or print warning
-            print(f"Warning: Mapped columns {missing_columns} not explicitly found in table '{target_table}'. Proceeding with standard matches.")
+            print(f"Warning: Mapped columns {missing_columns} not explicitly found in table '{target_table}'.")
 
         # Step 8: check if a row already exists for this organization_id
         cursor.execute(f"SELECT id FROM {target_table} WHERE {org_col} = %s;", (organization_id,))
@@ -164,21 +171,34 @@ def exchange_token():
             # UPDATE existing row
             update_query = f"""
                 UPDATE {target_table}
-                SET {waba_col} = %s, {phone_col} = %s, {token_col} = %s, status = 'active'
+                SET {waba_col} = %s, {phone_col} = %s, {token_col} = %s, status = 'active', updated_at = NOW()
                 WHERE {org_col} = %s;
             """
             cursor.execute(update_query, (waba_id, phone_number_id, access_token, organization_id))
         else:
-            # INSERT new clean profile row
-            # Verify if table has a status column or other non-null fields
+            # INSERT new clean profile row with generated UUID for primary key
+            new_uuid = str(uuid.uuid4())
             status_clause = ", status" if "status" in columns else ""
             status_val = ", 'active'" if "status" in columns else ""
             
+            # Check for standard metadata columns and populate them
+            meta_cols = []
+            meta_vals = []
+            if "created_at" in columns:
+                meta_cols.append("created_at")
+                meta_vals.append("NOW()")
+            if "updated_at" in columns:
+                meta_cols.append("updated_at")
+                meta_vals.append("NOW()")
+                
+            meta_cols_str = ", " + ", ".join(meta_cols) if meta_cols else ""
+            meta_vals_str = ", " + ", ".join(meta_vals) if meta_vals else ""
+
             insert_query = f"""
-                INSERT INTO {target_table} ({org_col}, {waba_col}, {phone_col}, {token_col}{status_clause})
-                VALUES (%s, %s, %s, %s{status_val});
+                INSERT INTO {target_table} (id, {org_col}, {waba_col}, {phone_col}, {token_col}{status_clause}{meta_cols_str})
+                VALUES (%s, %s, %s, %s, %s{status_val}{meta_vals_str});
             """
-            cursor.execute(insert_query, (organization_id, waba_id, phone_number_id, access_token))
+            cursor.execute(insert_query, (new_uuid, organization_id, waba_id, phone_number_id, access_token))
 
         # Commit transactions
         conn.commit()

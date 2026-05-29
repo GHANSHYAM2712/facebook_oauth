@@ -83,9 +83,9 @@ FLASK_ENV=production
 # DB Host: If PostgreSQL is in Docker, map it to localhost:5432
 DB_HOST=127.0.0.1
 DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_actual_whatomate_database_password
-DB_NAME=whatomate_production
+DB_USER=whatomate
+DB_PASSWORD=whatomate  
+DB_NAME=whatomate
 
 # Target organization setup
 TARGET_ORGANIZATION_NAME=Shiva Developers
@@ -123,6 +123,7 @@ After=network.target
 User=ubuntu
 Group=www-data
 WorkingDirectory=/var/www/whatsapp-signup
+
 Environment="PATH=/var/www/whatsapp-signup/venv/bin"
 ExecStart=/var/www/whatsapp-signup/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5001 "app:app"
 Restart=always
