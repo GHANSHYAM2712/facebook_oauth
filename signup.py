@@ -9,10 +9,12 @@ signup_bp = Blueprint('signup_bp', __name__, url_prefix='/auth')
 def embedded_signup():
     meta_app_id = os.getenv('META_APP_ID', '')
     meta_config_id = os.getenv('META_CONFIG_ID', '')
+    meta_version = os.getenv('META_API_VERSION', 'v24.0')
     return render_template(
         'embedded_signup.html',
         META_APP_ID=meta_app_id,
-        CONFIG_ID=meta_config_id
+        CONFIG_ID=meta_config_id,
+        META_API_VERSION=meta_version
     )
 
 @signup_bp.route('/exchange-token', methods=['POST'])
@@ -45,7 +47,9 @@ def exchange_token():
     conn = None
     try:
         # Step 1: Exchange code for user access token via Meta Graph API
-        token_url = 'https://graph.facebook.com/v21.0/oauth/access_token'
+        meta_version = os.getenv('META_API_VERSION', 'v24.0')
+        
+        token_url = f'https://graph.facebook.com/{meta_version}/oauth/access_token'
         token_params = {
             'client_id': meta_app_id,
             'client_secret': meta_app_secret,
@@ -65,7 +69,7 @@ def exchange_token():
             raise Exception("No access_token returned in the OAuth exchange.")
 
         # Step 2: Fetch the first WABA ID
-        waba_url = 'https://graph.facebook.com/v21.0/me/whatsapp_business_accounts'
+        waba_url = f'https://graph.facebook.com/{meta_version}/me/whatsapp_business_accounts'
         headers = {'Authorization': f'Bearer {access_token}'}
         
         waba_response = requests.get(waba_url, headers=headers)
@@ -80,7 +84,7 @@ def exchange_token():
         waba_id = waba_data[0].get('id')
 
         # Step 3: Fetch the first phone number ID and display_phone_number
-        phone_url = f'https://graph.facebook.com/v21.0/{waba_id}/phone_numbers'
+        phone_url = f'https://graph.facebook.com/{meta_version}/{waba_id}/phone_numbers'
         phone_response = requests.get(phone_url, headers=headers)
         if phone_response.status_code != 200:
             error_data = phone_response.json().get('error', {})
