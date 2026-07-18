@@ -281,6 +281,35 @@
         fjs.parentNode.insertBefore(js, fjs);
     }(document, 'script', 'facebook-jssdk'));
 
+    let authCode = null;
+    let wabaId = null;
+    let phoneNumberId = null;
+
+    // Listen for the WA_EMBEDDED_SIGNUP message event
+    window.addEventListener('message', function (event) {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
+                wabaId = (data.data && data.data.waba_id) || data.waba_id;
+                phoneNumberId = (data.data && data.data.phone_number_id) || data.phone_number_id;
+                checkAndProceed();
+            }
+        } catch (e) {
+            // Ignore parsing errors for non-JSON messages
+        }
+    });
+
+    function checkAndProceed() {
+        if (authCode && wabaId && phoneNumberId) {
+            // Advance step to exchange token
+            updateStep('step-1', 'completed');
+            updateStep('step-2', 'active');
+
+            // Send code and IDs to our backend
+            exchangeCode(authCode, wabaId, phoneNumberId);
+        }
+    }
+
     // Launch WhatsApp Embedded Signup Popup
     document.getElementById('btn-launch-signup').addEventListener('click', function () {
         if (!'{{ META_APP_ID }}' || !'{{ CONFIG_ID }}') {
@@ -288,20 +317,19 @@
             return;
         }
 
+        // Reset variables for new signup attempt
+        authCode = null;
+        wabaId = null;
+        phoneNumberId = null;
+
         // Show Processing Screen
         document.getElementById('initial-view').style.display = 'none';
         document.getElementById('processing-view').style.display = 'block';
 
         FB.login(function (response) {
             if (response.authResponse) {
-                const code = response.authResponse.code;
-
-                // Advance step to exchange token
-                updateStep('step-1', 'completed');
-                updateStep('step-2', 'active');
-
-                // Send code to our backend
-                exchangeCode(code);
+                authCode = response.authResponse.code;
+                checkAndProceed();
             } else {
                 updateStep('step-1', 'failed');
                 showFailure("Authentication cancelled or not authorized by the user.");
@@ -323,14 +351,18 @@
         el.className = `status-step ${state}`;
     }
 
-    function exchangeCode(code) {
+    function exchangeCode(code, wabaId, phoneNumberId) {
         fetch("{{ url_for('signup_bp.exchange_token') }}", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "X-Requested-With": "XMLHttpRequest"
             },
-            body: JSON.stringify({ code: code })
+            body: JSON.stringify({ 
+                code: code,
+                waba_id: wabaId,
+                phone_number_id: phoneNumberId
+            })
         })
             .then(response => {
                 if (!response.ok) {
