@@ -252,6 +252,32 @@ def exchange_token():
         conn.commit()
         cursor.close()
 
+        # Step 10: Store in local database for the admin dashboard
+        try:
+            from models import db, PendingWABACredentials
+            # Check if this waba_id + phone_number_id already exists to avoid duplicate rows
+            existing_cred = PendingWABACredentials.query.filter_by(
+                waba_id=waba_id,
+                phone_number_id=phone_number_id
+            ).first()
+            if not existing_cred:
+                new_cred = PendingWABACredentials(
+                    waba_id=waba_id,
+                    phone_number_id=phone_number_id,
+                    access_token=access_token,
+                    display_phone_number=display_phone_number,
+                    status='pending'
+                )
+                db.session.add(new_cred)
+                db.session.commit()
+            else:
+                existing_cred.access_token = access_token
+                existing_cred.display_phone_number = display_phone_number
+                existing_cred.status = 'pending'
+                db.session.commit()
+        except Exception as local_db_err:
+            print(f"Warning: Failed to save to local database for admin dashboard: {local_db_err}")
+
         return jsonify({
             'success': True,
             'organization_id': organization_id,
@@ -261,6 +287,23 @@ def exchange_token():
     except Exception as e:
         if conn:
             conn.rollback()
+
+        # Log failure to local database for auditing
+        try:
+            from models import db, PendingWABACredentials
+            new_cred = PendingWABACredentials(
+                waba_id=waba_id if 'waba_id' in locals() else None,
+                phone_number_id=phone_number_id if 'phone_number_id' in locals() else None,
+                access_token=access_token if 'access_token' in locals() else None,
+                display_phone_number=display_phone_number if 'display_phone_number' in locals() else None,
+                status='failed',
+                error_message=str(e)
+            )
+            db.session.add(new_cred)
+            db.session.commit()
+        except Exception as local_db_err:
+            print(f"Warning: Failed to log failure to local database: {local_db_err}")
+
         return jsonify({
             'success': False,
             'error': str(e)
