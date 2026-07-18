@@ -321,7 +321,7 @@
 
     // 3. The Execution Logic
     const checkAndProceed = () => {
-        if (authCode && selectedOrgId && wabaId && phoneNumberId) {
+        if (authCode && selectedOrgId && wabaId) {
             // Send parameters matching the signature of exchangeCode: (code, wabaId, phoneNumberId, organizationId)
             exchangeCode(authCode, wabaId, phoneNumberId, selectedOrgId);
         }
@@ -363,9 +363,9 @@
 
                 // 15-second fallback timer
                 setTimeout(() => {
-                    if (!wabaId || !phoneNumberId) {
+                    if (!wabaId) {
                         updateStep('step-1', 'failed');
-                        showFailure("Meta didn't return WABA/phone session info. Check that this domain is in Allowed Domains and Valid OAuth Redirect URIs in your Facebook Login for Business config.");
+                        showFailure("Meta didn't return WABA session info. Check that this domain is in Allowed Domains and Valid OAuth Redirect URIs in your Facebook Login for Business config.");
                     }
                 }, 15000);
 

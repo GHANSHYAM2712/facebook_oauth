@@ -61,8 +61,6 @@ def exchange_token():
         return jsonify({'success': False, 'error': 'Authorization code is required.'}), 400
     if not waba_id:
         return jsonify({'success': False, 'error': 'waba_id is required.'}), 400
-    if not phone_number_id:
-        return jsonify({'success': False, 'error': 'phone_number_id is required.'}), 400
 
     # Retrieve environment variables for Meta Graph API
     meta_app_id = os.getenv('META_APP_ID')
@@ -105,18 +103,40 @@ def exchange_token():
         if not access_token:
             raise Exception("No access_token returned in the OAuth exchange.")
 
-        # Step 2: Fetch the display phone number using phone_number_id (fallback to raw phone_number_id if the call fails)
-        display_phone_number = phone_number_id
-        try:
-            phone_url = f'https://graph.facebook.com/{meta_version}/{phone_number_id}'
-            headers = {'Authorization': f'Bearer {access_token}'}
-            phone_params = {'fields': 'display_phone_number'}
-            phone_response = requests.get(phone_url, headers=headers, params=phone_params)
-            if phone_response.status_code == 200:
-                phone_info = phone_response.json()
-                display_phone_number = phone_info.get('display_phone_number') or phone_number_id
-        except Exception:
+        # Step 2: Resolve phone_number_id and fetch display phone number
+        if not phone_number_id:
+            try:
+                phone_numbers_url = f'https://graph.facebook.com/{meta_version}/{waba_id}/phone_numbers'
+                headers = {'Authorization': f'Bearer {access_token}'}
+                phone_numbers_response = requests.get(phone_numbers_url, headers=headers)
+                if phone_numbers_response.status_code == 200:
+                    phone_numbers_data = phone_numbers_response.json().get('data', [])
+                    if phone_numbers_data:
+                        # Extract the first available phone number
+                        phone_number_id = phone_numbers_data[0].get('id')
+                        display_phone_number = phone_numbers_data[0].get('display_phone_number') or phone_number_id
+                        if not phone_number_id:
+                            raise Exception("No phone number ID found in the WABA phone numbers list.")
+                    else:
+                        raise Exception("No phone numbers found associated with the WABA.")
+                else:
+                    error_data = phone_numbers_response.json().get('error', {})
+                    raise Exception(error_data.get('message', 'Failed to fetch WABA phone numbers.'))
+            except Exception as e:
+                raise Exception(f"Could not automatically resolve phone number ID: {str(e)}")
+        else:
+            # Fallback to fetching the display phone number using the provided phone_number_id
             display_phone_number = phone_number_id
+            try:
+                phone_url = f'https://graph.facebook.com/{meta_version}/{phone_number_id}'
+                headers = {'Authorization': f'Bearer {access_token}'}
+                phone_params = {'fields': 'display_phone_number'}
+                phone_response = requests.get(phone_url, headers=headers, params=phone_params)
+                if phone_response.status_code == 200:
+                    phone_info = phone_response.json()
+                    display_phone_number = phone_info.get('display_phone_number') or phone_number_id
+            except Exception:
+                display_phone_number = phone_number_id
 
         # Step 4: Establish psycopg2 connection to external Whatomate database
         try:
