@@ -287,6 +287,7 @@
 
     // Listen for the WA_EMBEDDED_SIGNUP message event
     window.addEventListener('message', function (event) {
+        if (!event.origin.endsWith('facebook.com')) return;
         try {
             const data = JSON.parse(event.data);
             if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
@@ -330,6 +331,12 @@
             if (response.authResponse) {
                 authCode = response.authResponse.code;
                 checkAndProceed();
+                setTimeout(() => {
+                    if (!wabaId || !phoneNumberId) {
+                        updateStep('step-1', 'failed');
+                        showFailure("Meta didn't return WABA/phone session info. Check that this domain is in Allowed Domains and Valid OAuth Redirect URIs in your Facebook Login for Business config.");
+                    }
+                }, 15000);
             } else {
                 updateStep('step-1', 'failed');
                 showFailure("Authentication cancelled or not authorized by the user.");

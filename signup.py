@@ -58,8 +58,7 @@ def exchange_token():
         token_params = {
             'client_id': meta_app_id,
             'client_secret': meta_app_secret,
-            'code': code,
-            'redirect_uri': ''
+            'code': code
         }
         
         token_response = requests.get(token_url, params=token_params)
