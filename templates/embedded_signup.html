@@ -292,46 +292,47 @@
         fjs.parentNode.insertBefore(js, fjs);
     }(document, 'script', 'facebook-jssdk'));
 
+    // 1. Define global variables so all functions can access them
     let authCode = null;
+    let selectedOrgId = null;
     let wabaId = null;
     let phoneNumberId = null;
 
-    // Listen for the WA_EMBEDDED_SIGNUP message event
-    window.addEventListener('message', function (event) {
+    // 2. The Background Event Listener
+    const sessionInfoListener = (event) => {
+        // Security check to ensure the message is actually from Meta
         if (!event.origin.endsWith('facebook.com')) return;
+        
         try {
             const data = JSON.parse(event.data);
             if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
+                // Capture the IDs from the broadcast (with safety fallbacks)
                 wabaId = (data.data && data.data.waba_id) || data.waba_id;
                 phoneNumberId = (data.data && data.data.phone_number_id) || data.phone_number_id;
-                checkAndProceed();
+                
+                // If the FB.login callback already finished and populated authCode, proceed!
+                checkAndProceed(); 
             }
         } catch (e) {
-            // Ignore parsing errors for non-JSON messages
+            // Ignore non-JSON messages
         }
-    });
+    };
+    window.addEventListener('message', sessionInfoListener);
 
-    function checkAndProceed() {
-        if (authCode && wabaId && phoneNumberId) {
-            const orgSelect = document.getElementById('org-select');
-            const selectedOrgId = orgSelect ? orgSelect.value : null;
-
-            // Advance step to exchange token
-            updateStep('step-1', 'completed');
-            updateStep('step-2', 'active');
-
-            // Send code, WABA ID, phone number ID, and organization ID to our backend
+    // 3. The Execution Logic
+    const checkAndProceed = () => {
+        if (authCode && selectedOrgId && wabaId && phoneNumberId) {
+            // Send parameters matching the signature of exchangeCode: (code, wabaId, phoneNumberId, organizationId)
             exchangeCode(authCode, wabaId, phoneNumberId, selectedOrgId);
         }
-    }
+    };
 
-    // Launch WhatsApp Embedded Signup Popup
+    // 4. The Button Click Event
     document.getElementById('btn-launch-signup').addEventListener('click', function () {
-        // Capture and validate selected organization if the selector exists
         const orgSelect = document.getElementById('org-select');
-        const selectedOrgId = orgSelect ? orgSelect.value : null;
+        selectedOrgId = orgSelect ? orgSelect.value : null;
 
-        if (orgSelect && !selectedOrgId) {
+        if (!selectedOrgId) {
             alert('Please select a target organization before continuing.');
             return;
         }
@@ -353,13 +354,21 @@
         FB.login(function (response) {
             if (response.authResponse) {
                 authCode = response.authResponse.code;
+                
+                updateStep('step-1', 'completed');
+                updateStep('step-2', 'active');
+
+                // Try to proceed immediately
                 checkAndProceed();
+
+                // 15-second fallback timer
                 setTimeout(() => {
                     if (!wabaId || !phoneNumberId) {
                         updateStep('step-1', 'failed');
                         showFailure("Meta didn't return WABA/phone session info. Check that this domain is in Allowed Domains and Valid OAuth Redirect URIs in your Facebook Login for Business config.");
                     }
                 }, 15000);
+
             } else {
                 updateStep('step-1', 'failed');
                 showFailure("Authentication cancelled or not authorized by the user.");
