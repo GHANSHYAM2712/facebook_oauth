@@ -169,6 +169,17 @@
             manage templates and send messages on behalf of your connected phone numbers.
         </p>
 
+        <!-- Organization Select Dropdown -->
+        <div style="margin-bottom: 1.5rem; text-align: left;">
+            <label for="org-select" style="display: block; margin-bottom: 0.5rem; color: #c9d1d9; font-weight: 600; font-size: 0.95rem;">Select Organization Context</label>
+            <select id="org-select" style="width: 100%; padding: 0.85rem; border-radius: 6px; background: rgba(0, 0, 0, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.1); font-size: 1rem;">
+                <option value="" disabled selected>-- Choose an Organization --</option>
+                {% for org in organizations %}
+                    <option value="{{ org.id }}">{{ org.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <button id="btn-launch-signup" class="btn-premium btn-meta"
             style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.85rem 1rem;">
             <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="currentColor">

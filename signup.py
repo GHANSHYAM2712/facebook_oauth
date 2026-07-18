@@ -10,11 +10,43 @@ def embedded_signup():
     meta_app_id = os.getenv('META_APP_ID', '')
     meta_config_id = os.getenv('META_CONFIG_ID', '')
     meta_version = os.getenv('META_API_VERSION', 'v25.0')
+    
+    # Retrieve environment variables for PostgreSQL Database
+    db_host = os.getenv('DB_HOST')
+    db_port = os.getenv('DB_PORT', '5432')
+    db_user = os.getenv('DB_USER')
+    db_pass = os.getenv('DB_PASSWORD')
+    db_name = os.getenv('DB_NAME')
+    
+    organizations = []
+    conn = None
+    if all([db_host, db_user, db_pass, db_name]):
+        try:
+            conn = psycopg2.connect(
+                host=db_host,
+                port=db_port,
+                user=db_user,
+                password=db_pass,
+                database=db_name
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name FROM organizations ORDER BY name;")
+            rows = cursor.fetchall()
+            organizations = [{'id': str(row[0]), 'name': row[1]} for row in rows]
+            cursor.close()
+        except Exception as e:
+            # Resilient fallback, print/log warning but do not crash the view
+            print(f"Warning: Could not fetch organizations for dropdown: {e}")
+        finally:
+            if conn:
+                conn.close()
+
     return render_template(
         'embedded_signup.html',
         META_APP_ID=meta_app_id,
         CONFIG_ID=meta_config_id,
-        META_API_VERSION=meta_version
+        META_API_VERSION=meta_version,
+        organizations=organizations
     )
 
 @signup_bp.route('/exchange-token', methods=['POST'])
