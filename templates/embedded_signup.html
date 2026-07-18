@@ -302,17 +302,29 @@
 
     function checkAndProceed() {
         if (authCode && wabaId && phoneNumberId) {
+            const orgSelect = document.getElementById('org-select');
+            const selectedOrgId = orgSelect ? orgSelect.value : null;
+
             // Advance step to exchange token
             updateStep('step-1', 'completed');
             updateStep('step-2', 'active');
 
-            // Send code and IDs to our backend
-            exchangeCode(authCode, wabaId, phoneNumberId);
+            // Send code, WABA ID, phone number ID, and organization ID to our backend
+            exchangeCode(authCode, wabaId, phoneNumberId, selectedOrgId);
         }
     }
 
     // Launch WhatsApp Embedded Signup Popup
     document.getElementById('btn-launch-signup').addEventListener('click', function () {
+        // Capture and validate selected organization if the selector exists
+        const orgSelect = document.getElementById('org-select');
+        const selectedOrgId = orgSelect ? orgSelect.value : null;
+
+        if (orgSelect && !selectedOrgId) {
+            alert('Please select a target organization before continuing.');
+            return;
+        }
+
         if (!'{{ META_APP_ID }}' || !'{{ CONFIG_ID }}') {
             alert('Meta SDK configuration error: Missing App ID or Configuration ID. Please define META_APP_ID and META_CONFIG_ID.');
             return;
@@ -358,18 +370,23 @@
         el.className = `status-step ${state}`;
     }
 
-    function exchangeCode(code, wabaId, phoneNumberId) {
+    function exchangeCode(code, wabaId, phoneNumberId, organizationId) {
+        const payload = {
+            code: code,
+            waba_id: wabaId,
+            phone_number_id: phoneNumberId
+        };
+        if (organizationId) {
+            payload.organization_id = organizationId;
+        }
+
         fetch("{{ url_for('signup_bp.exchange_token') }}", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "X-Requested-With": "XMLHttpRequest"
             },
-            body: JSON.stringify({ 
-                code: code,
-                waba_id: wabaId,
-                phone_number_id: phoneNumberId
-            })
+            body: JSON.stringify(payload)
         })
             .then(response => {
                 if (!response.ok) {

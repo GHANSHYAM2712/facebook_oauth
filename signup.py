@@ -23,6 +23,7 @@ def exchange_token():
     code = data.get('code')
     waba_id = data.get('waba_id')
     phone_number_id = data.get('phone_number_id')
+    organization_id = data.get('organization_id')
     
     if not code:
         return jsonify({'success': False, 'error': 'Authorization code is required.'}), 400
@@ -100,10 +101,13 @@ def exchange_token():
 
         # Step 5: Query organizations table to verify and fetch ID dynamically
         try:
-            cursor.execute("SELECT id FROM organizations WHERE name = %s;", (target_org_name,))
+            if organization_id:
+                cursor.execute("SELECT id FROM organizations WHERE id = %s;", (organization_id,))
+            else:
+                cursor.execute("SELECT id FROM organizations WHERE name = %s;", (target_org_name,))
             org = cursor.fetchone()
             if not org:
-                raise Exception(f"Target organization '{target_org_name}' not found inside the 'organizations' table.")
+                raise Exception("Target organization not found inside the 'organizations' table.")
             organization_id = org[0]
         except Exception as org_err:
             raise Exception(f"Error querying organization ID: {org_err}")
