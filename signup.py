@@ -210,43 +210,40 @@ def exchange_token():
         if missing_columns:
             print(f"Warning: Mapped columns {missing_columns} not explicitly found in table '{target_table}'.")
 
-        # Step 8: check if a row already exists for this organization_id
-        cursor.execute(f"SELECT id FROM {target_table} WHERE {org_col} = %s;", (organization_id,))
-        exists_row = cursor.fetchone()
-
-        # Step 9: Perform UPDATE or INSERT SQL operation (UPSERT)
-        if exists_row:
-            # UPDATE existing row
-            update_query = f"""
-                UPDATE {target_table}
-                SET {waba_col} = %s, {phone_col} = %s, {token_col} = %s, status = 'active', updated_at = NOW()
-                WHERE {org_col} = %s;
-            """
-            cursor.execute(update_query, (waba_id, phone_number_id, access_token, organization_id))
-        else:
-            # INSERT new clean profile row with generated UUID for primary key
-            new_uuid = str(uuid.uuid4())
-            status_clause = ", status" if "status" in columns else ""
-            status_val = ", 'active'" if "status" in columns else ""
+        # Step 8: Perform atomic SQL UPSERT (ON CONFLICT) matching organization_id and phone_id
+        status_clause = ", status" if "status" in columns else ""
+        status_val = ", 'active'" if "status" in columns else ""
+        
+        # Check for standard metadata columns and populate them
+        meta_cols = []
+        meta_vals = []
+        if "created_at" in columns:
+            meta_cols.append("created_at")
+            meta_vals.append("NOW()")
+        if "updated_at" in columns:
+            meta_cols.append("updated_at")
+            meta_vals.append("NOW()")
             
-            # Check for standard metadata columns and populate them
-            meta_cols = []
-            meta_vals = []
-            if "created_at" in columns:
-                meta_cols.append("created_at")
-                meta_vals.append("NOW()")
-            if "updated_at" in columns:
-                meta_cols.append("updated_at")
-                meta_vals.append("NOW()")
-                
-            meta_cols_str = ", " + ", ".join(meta_cols) if meta_cols else ""
-            meta_vals_str = ", " + ", ".join(meta_vals) if meta_vals else ""
+        meta_cols_str = ", " + ", ".join(meta_cols) if meta_cols else ""
+        meta_vals_str = ", " + ", ".join(meta_vals) if meta_vals else ""
 
-            insert_query = f"""
-                INSERT INTO {target_table} (id, {org_col}, {waba_col}, {phone_col}, {token_col}{status_clause}{meta_cols_str})
-                VALUES (%s, %s, %s, %s, %s{status_val}{meta_vals_str});
-            """
-            cursor.execute(insert_query, (new_uuid, organization_id, waba_id, phone_number_id, access_token))
+        # Construct resolution clauses for conflict
+        deleted_at_reset = ", deleted_at = NULL" if "deleted_at" in columns else ""
+        status_reset = ", status = 'active'" if "status" in columns else ""
+        updated_at_reset = ", updated_at = NOW()" if "updated_at" in columns else ""
+
+        upsert_query = f"""
+            INSERT INTO {target_table} (id, {org_col}, {waba_col}, {phone_col}, {token_col}{status_clause}{meta_cols_str})
+            VALUES (%s, %s, %s, %s, %s{status_val}{meta_vals_str})
+            ON CONFLICT ({org_col}, {phone_col}) DO UPDATE
+            SET {waba_col} = EXCLUDED.{waba_col},
+                {token_col} = EXCLUDED.{token_col}
+                {status_reset}
+                {deleted_at_reset}
+                {updated_at_reset};
+        """
+        new_uuid = str(uuid.uuid4())
+        cursor.execute(upsert_query, (new_uuid, organization_id, waba_id, phone_number_id, access_token))
 
         # Commit transactions
         conn.commit()
